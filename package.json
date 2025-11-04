@@ -5,22 +5,32 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "mastra:dev": "bunx mastra dev",
+    "mastra:build": "bunx mastra build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "ultracite lint",
+    "format": "ultracite format",
+    "prepare": "husky"
   },
   "dependencies": {
+    "@mastra/core": "^0.23.3",
+    "@mastra/libsql": "^0.16.1",
+    "@mastra/loggers": "^0.10.18",
+    "luxon": "^3.7.2",
+    "next": "16.0.1",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "next": "16.0.1"
+    "zod": "^4.1.12"
   },
   "devDependencies": {
-    "typescript": "^5",
+    "@biomejs/biome": "^2.3.2",
+    "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@tailwindcss/postcss": "^4",
+    "husky": "^9.1.7",
     "tailwindcss": "^4",
-    "eslint": "^9",
-    "eslint-config-next": "16.0.1"
+    "typescript": "^5",
+    "ultracite": "^6.2.0"
   }
 }
