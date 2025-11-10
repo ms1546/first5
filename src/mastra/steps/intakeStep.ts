@@ -1,22 +1,26 @@
-import { createStep } from '@mastra/core/workflows';
-import {
-  intakeStepOutputSchema,
-  workflowInputSchema,
-} from '../schemas/intake';
+import { createStep } from "@mastra/core/workflows";
+import { intakeStepOutputSchema, workflowInputSchema } from "../schemas/intake";
 import {
   classifyTask,
   inferHorizon,
   inferUrgency,
   normalizeDeadline,
-} from '../utils/classification';
-import { getHorizonLabel, getTaskTypeLabel, getUrgencyLabel } from '../utils/labels';
+} from "../utils/classification";
+import {
+  getHorizonLabel,
+  getTaskTypeLabel,
+  getUrgencyLabel,
+} from "../utils/labels";
+
+const HIGH_CONFIDENCE = 0.7;
+const LOW_CONFIDENCE = 0.4;
 
 export const intakeStep = createStep({
-  id: 'intake-normalization',
-  description: '自由入力をIntakeNormalized形式へ整形する。',
+  id: "intake-normalization",
+  description: "自由入力をIntakeNormalized形式へ整形する。",
   inputSchema: workflowInputSchema,
   outputSchema: intakeStepOutputSchema,
-  execute: async ({ inputData }) => {
+  execute: ({ inputData }) => {
     const {
       task,
       userDeadline,
@@ -26,12 +30,24 @@ export const intakeStep = createStep({
       preferredPlace,
       requiredResources,
       notes,
+      history,
     } = inputData;
 
-    const classification = classifyTask(task);
-    const normalizedDeadline = normalizeDeadline(userDeadline ?? null, timezone);
+    const historyText = history
+      ?.map(
+        (message) =>
+          `${message.role === "assistant" ? "アシスタント" : "ユーザー"}: ${message.content}`
+      )
+      .join("\n");
+    const combinedTask = historyText ? `${task}\n${historyText}` : task;
+
+    const classification = classifyTask(combinedTask);
+    const normalizedDeadline = normalizeDeadline(
+      userDeadline ?? null,
+      timezone
+    );
     const urgencySuggested = inferUrgency({
-      task,
+      task: combinedTask,
       deadline: normalizedDeadline,
       userUrgency,
     });
@@ -41,12 +57,18 @@ export const intakeStep = createStep({
       type: classification.type,
     });
 
-    const resources = Array.from(new Set(requiredResources ?? [])).filter(Boolean);
+    const resources = Array.from(new Set(requiredResources ?? [])).filter(
+      Boolean
+    );
+
+    const timezoneGuess =
+      timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? null;
 
     const normalized = {
       intent: task.trim(),
       type: classification.type,
       deadline: normalizedDeadline,
+      timezone: timezoneGuess,
       urgency_suggested: urgencySuggested,
       urgency_final: userUrgency,
       horizon,
@@ -58,11 +80,16 @@ export const intakeStep = createStep({
       notes: notes ?? null,
     } as const;
 
-    const confidence = classification.detectedKeywords.length > 0 ? 0.7 : 0.4;
+    const confidence =
+      classification.detectedKeywords.length > 0
+        ? HIGH_CONFIDENCE
+        : LOW_CONFIDENCE;
     const typeLabel = getTaskTypeLabel(classification.type);
     const urgencyLabel = getUrgencyLabel(urgencySuggested);
     const horizonLabel = getHorizonLabel(horizon);
-    const formattedDeadline = normalizedDeadline ? formatDeadline(normalizedDeadline) : null;
+    const formattedDeadline = normalizedDeadline
+      ? formatDeadline(normalizedDeadline)
+      : null;
 
     return {
       normalized,
@@ -71,11 +98,12 @@ export const intakeStep = createStep({
         confidence,
         rationale: [
           `分類: ${typeLabel}`,
-          formattedDeadline ? `期限: ${formattedDeadline}` : '期限: 未設定',
+          formattedDeadline ? `期限: ${formattedDeadline}` : "期限: 未設定",
           `推奨緊急度: ${urgencyLabel}`,
           `想定タイムスパン: ${horizonLabel}`,
         ],
       },
+      history: history ?? [],
     };
   },
 });
@@ -86,8 +114,8 @@ function formatDeadline(isoString: string): string | null {
     return null;
   }
 
-  return new Intl.DateTimeFormat('ja-JP', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
+  return new Intl.DateTimeFormat("ja-JP", {
+    dateStyle: "medium",
+    timeStyle: "short",
   }).format(date);
 }

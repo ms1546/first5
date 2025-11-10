@@ -1,0 +1,1 @@
+export const FOLLOW_UP_STEP_THRESHOLD = 3;
