@@ -81,6 +81,7 @@ Intake Agent が JSON 正規化
 - Planner：タスクを分解し DoD を付与
 - Critic：整合/詰まりリスクをレビュー
 - Coach：「最初の5分スクリプト」と実行補助を生成
+- ヒアリングは最大1問: 期限など必須事項だけ追加で尋ね、未回答ポイントは `followUps` にまとめてカレンダー案と共に提示する。
 
 ---
 
@@ -206,6 +207,8 @@ flowchart LR
 ```
 
 ### 13.3 環境変数
+ローカル開発では `.env.example` を `.env` にコピーし、短命な IAM 認証情報を設定してください。ファイルは `.gitignore` 済みのためリポジトリには含まれません。トークンの発行手順は `docs/bedrock-local-auth.md` にまとめています。
+
 ```env
 AWS_REGION=ap-northeast-1
 BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
@@ -217,22 +220,42 @@ AWS_SESSION_TOKEN=...
 
 ### 13.4 LLMラッパ（`/mastra/llm.ts`）
 ```ts
-import { generateText } from 'ai'
-import { bedrock } from '@ai-sdk/amazon-bedrock'
+import { generateObject } from 'ai';
+import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
+import type { ZodTypeAny, z } from 'zod';
+import { createLLMTrace } from '@/src/mastra/telemetry/llmTelemetry';
 
-export async function callLLM(system: string, user: string): Promise<string> {
-  const modelId = process.env.BEDROCK_MODEL_ID || 'anthropic.claude-3-5-sonnet-20241022-v2:0'
-  const provider = bedrock({ region: process.env.AWS_REGION || 'ap-northeast-1' })
-  const { text } = await generateText({
-    model: provider(modelId),
-    system,
-    prompt: user,
-    temperature: 0.2,
-    maxTokens: 1024
-  })
-  return text
+const bedrock = createAmazonBedrock({
+  region: process.env.AWS_REGION ?? 'ap-northeast-1',
+});
+
+export async function callBedrockStructured<TSchema extends ZodTypeAny>(
+  schema: TSchema,
+  system: string,
+  prompt: string,
+  modelId = process.env.BEDROCK_MODEL_ID ?? 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+): Promise<z.infer<TSchema>> {
+  const trace = createLLMTrace({ step: 'doc-sample', modelId });
+  try {
+    const result = await generateObject({
+      model: bedrock.languageModel(modelId),
+      schema,
+      maxOutputTokens: Number(process.env.BEDROCK_MAX_OUTPUT_TOKENS ?? 1024),
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: prompt },
+      ],
+    });
+    trace.success(result.usage?.totalTokens ?? null);
+    return schema.parse(result.object);
+  } catch (error) {
+    trace.failure(error);
+    throw error;
+  }
 }
 ```
+
+`createLLMTrace` は現在 Console へ構造化ログを出すだけですが、Langfuse や CloudWatch Logs へ差し替えやすいよう独立したモジュールにしてあります。これにより LLM 呼び出しごとの開始/成功/失敗とトークン消費量を一元トラックできます。
 
 ### 13.5 運用ベストプラクティス
 - Bedrock コンソールで **対象モデルのアクセス権を有効化**

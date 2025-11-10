@@ -1,6 +1,12 @@
-import { NextResponse } from 'next/server';
-import { agentPipelineWorkflow } from '@/src/mastra/workflows/agentPipeline';
-import { workflowInputSchema } from '@/src/mastra/schemas/intake';
+qimport;
+{
+  NextResponse;
+}
+from;
+("next/server");
+
+import { workflowInputSchema } from "@/src/mastra/schemas/intake";
+import { agentPipelineWorkflow } from "@/src/mastra/workflows/agentPipeline";
 
 export async function POST(request: Request) {
   try {
@@ -10,10 +16,10 @@ export async function POST(request: Request) {
     if (!parsed.success) {
       return NextResponse.json(
         {
-          error: '入力内容の検証に失敗しました。',
+          error: "入力内容の検証に失敗しました。",
           details: parsed.error.flatten(),
         },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -21,14 +27,12 @@ export async function POST(request: Request) {
     const result = await run.start({ inputData: parsed.data });
 
     return NextResponse.json(result, { status: 200 });
-  } catch (error) {
-    console.error('Mastra workflow execution failed', error);
-
+  } catch (_error) {
     return NextResponse.json(
       {
-        error: 'サーバー内部でエラーが発生しました。',
+        error: "サーバー内部でエラーが発生しました。",
       },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }

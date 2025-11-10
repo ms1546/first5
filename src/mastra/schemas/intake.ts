@@ -1,31 +1,36 @@
-import { z } from 'zod';
+import { z } from "zod";
+import { MAX_TASK_MINUTES } from "../constants/time";
 
 export const taskTypeSchema = z.enum([
-  'procedure',
-  'housework',
-  'study',
-  'work',
-  'health',
-  'misc',
+  "procedure",
+  "housework",
+  "study",
+  "work",
+  "health",
+  "misc",
 ]);
 
-export const urgencySchema = z.enum(['high', 'mid', 'low']);
+export const urgencySchema = z.enum(["high", "mid", "low"]);
 
 export const horizonSchema = z.enum([
-  'same_day',
-  'weekly',
-  'monthly',
-  'long_term',
+  "same_day",
+  "weekly",
+  "monthly",
+  "long_term",
 ]);
+
+export const conversationMessageSchema = z.object({
+  role: z.enum(["user", "assistant"]),
+  content: z.string(),
+});
+
+export type ConversationMessage = z.infer<typeof conversationMessageSchema>;
 
 export const intakeNormalizedSchema = z.object({
   intent: z.string(),
   type: taskTypeSchema,
-  deadline: z
-    .string()
-    .datetime({ offset: true })
-    .nullable()
-    .optional(),
+  deadline: z.string().datetime({ offset: true }).nullable().optional(),
+  timezone: z.string().nullable().optional(),
   urgency_suggested: urgencySchema,
   urgency_final: urgencySchema.optional(),
   horizon: horizonSchema,
@@ -49,25 +54,32 @@ export const intakeStepOutputSchema = z.object({
     confidence: z.number().min(0).max(1),
     rationale: z.array(z.string()),
   }),
+  history: z.array(conversationMessageSchema).optional(),
 });
 
 export type IntakeStepOutput = z.infer<typeof intakeStepOutputSchema>;
 
 export const workflowInputSchema = z.object({
-  task: z.string().min(1, 'task cannot be empty'),
+  task: z.string().min(1, "task cannot be empty"),
   userDeadline: z
     .union([
       z.string().datetime({ offset: true }),
-      z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      z.string().regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/),
     ])
     .nullable()
     .optional(),
   userUrgency: urgencySchema.optional(),
   timezone: z.string().optional(),
-  minutesAvailable: z.number().int().positive().max(480).optional(),
+  minutesAvailable: z
+    .number()
+    .int()
+    .positive()
+    .max(MAX_TASK_MINUTES)
+    .optional(),
   preferredPlace: z.string().optional(),
   requiredResources: z.array(z.string()).optional(),
   notes: z.string().optional(),
+  history: z.array(conversationMessageSchema).optional(),
 });
 
 export type WorkflowInput = z.infer<typeof workflowInputSchema>;

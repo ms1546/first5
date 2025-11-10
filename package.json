@@ -13,9 +13,12 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@ai-sdk/amazon-bedrock": "^3.0.51",
+    "@aws-sdk/client-bedrock-runtime": "^3.925.0",
     "@mastra/core": "^0.23.3",
     "@mastra/libsql": "^0.16.1",
     "@mastra/loggers": "^0.10.18",
+    "ai": "^5.0.88",
     "luxon": "^3.7.2",
     "next": "16.0.1",
     "react": "19.2.0",

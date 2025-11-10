@@ -1,5 +1,13 @@
-import { DateTime } from 'luxon';
-import { Horizon, TaskType, Urgency } from '../schemas/intake';
+import { DateTime } from "luxon";
+import {
+  HALF_HOUR_MINUTES,
+  HIGH_URGENCY_WINDOW_HOURS,
+  MID_URGENCY_WINDOW_HOURS,
+  MONTHLY_DEADLINE_DAYS,
+  SAME_DAY_DEADLINE_DAYS,
+  WEEKLY_DEADLINE_DAYS,
+} from "../constants/time";
+import type { Horizon, TaskType, Urgency } from "../schemas/intake";
 
 const TASK_KEYWORDS: Record<TaskType, RegExp[]> = {
   procedure: [
@@ -13,7 +21,9 @@ const TASK_KEYWORDS: Record<TaskType, RegExp[]> = {
   misc: [],
 };
 
-const URGENCY_KEYWORDS: RegExp[] = [/(urgent|至急|asap|すぐ|today|今すぐ|今日)/i];
+const URGENCY_KEYWORDS: RegExp[] = [
+  /(urgent|至急|asap|すぐ|today|今すぐ|今日)/i,
+];
 
 export type ClassificationResult = {
   type: TaskType;
@@ -21,7 +31,10 @@ export type ClassificationResult = {
 };
 
 export function classifyTask(task: string): ClassificationResult {
-  for (const [type, patterns] of Object.entries(TASK_KEYWORDS) as [TaskType, RegExp[]][]) {
+  for (const [type, patterns] of Object.entries(TASK_KEYWORDS) as [
+    TaskType,
+    RegExp[],
+  ][]) {
     const match = patterns.find((pattern) => pattern.test(task));
     if (match) {
       return {
@@ -32,7 +45,7 @@ export function classifyTask(task: string): ClassificationResult {
   }
 
   return {
-    type: 'misc',
+    type: "misc",
     detectedKeywords: [],
   };
 }
@@ -46,29 +59,49 @@ export function inferHorizon({
   minutesAvailable?: number;
   type: TaskType;
 }): Horizon {
-  if (deadline) {
-    const diff = DateTime.fromISO(deadline).diffNow('days').days;
-    if (Number.isFinite(diff)) {
-      if (diff <= 1) return 'same_day';
-      if (diff <= 7) return 'weekly';
-      if (diff <= 30) return 'monthly';
-      return 'long_term';
-    }
+  const deadlineHorizon = inferHorizonFromDeadline(deadline);
+  if (deadlineHorizon) {
+    return deadlineHorizon;
   }
 
-  if (minutesAvailable && minutesAvailable <= 30) {
-    return 'same_day';
+  if (
+    typeof minutesAvailable === "number" &&
+    minutesAvailable <= HALF_HOUR_MINUTES
+  ) {
+    return "same_day";
   }
 
-  if (type === 'study' || type === 'work') {
-    return 'weekly';
+  if (type === "study" || type === "work") {
+    return "weekly";
   }
 
-  if (type === 'health') {
-    return 'monthly';
+  if (type === "health") {
+    return "monthly";
   }
 
-  return 'long_term';
+  return "long_term";
+}
+
+function inferHorizonFromDeadline(deadline?: string | null): Horizon | null {
+  if (!deadline) {
+    return null;
+  }
+
+  const diffDays = DateTime.fromISO(deadline).diffNow("days").days;
+  if (!Number.isFinite(diffDays)) {
+    return null;
+  }
+
+  if (diffDays <= SAME_DAY_DEADLINE_DAYS) {
+    return "same_day";
+  }
+  if (diffDays <= WEEKLY_DEADLINE_DAYS) {
+    return "weekly";
+  }
+  if (diffDays <= MONTHLY_DEADLINE_DAYS) {
+    return "monthly";
+  }
+  return "long_term";
 }
 
 export function inferUrgency({
@@ -80,26 +113,48 @@ export function inferUrgency({
   deadline: string | null | undefined;
   userUrgency?: Urgency;
 }): Urgency {
-  if (userUrgency) return userUrgency;
+  if (userUrgency) {
+    return userUrgency;
+  }
 
-  if (deadline) {
-    const diff = DateTime.fromISO(deadline).diffNow('hours').hours;
-    if (Number.isFinite(diff)) {
-      if (diff <= 24) return 'high';
-      if (diff <= 168) return 'mid';
-      return 'low';
-    }
+  const deadlineUrgency = inferUrgencyFromDeadline(deadline);
+  if (deadlineUrgency) {
+    return deadlineUrgency;
   }
 
   if (URGENCY_KEYWORDS.some((pattern) => pattern.test(task))) {
-    return 'high';
+    return "high";
   }
 
-  return 'mid';
+  return "mid";
 }
 
-export function normalizeDeadline(deadline?: string | null, timezone?: string): string | null {
-  if (!deadline) return null;
+function inferUrgencyFromDeadline(deadline?: string | null): Urgency | null {
+  if (!deadline) {
+    return null;
+  }
+
+  const diffHours = DateTime.fromISO(deadline).diffNow("hours").hours;
+  if (!Number.isFinite(diffHours)) {
+    return null;
+  }
+
+  if (diffHours <= HIGH_URGENCY_WINDOW_HOURS) {
+    return "high";
+  }
+  if (diffHours <= MID_URGENCY_WINDOW_HOURS) {
+    return "mid";
+  }
+  return "low";
+}
+
+export function normalizeDeadline(
+  deadline?: string | null,
+  timezone?: string
+): string | null {
+  if (!deadline) {
+    return null;
+  }
 
   const parsed = DateTime.fromISO(deadline, { zone: timezone });
   if (parsed.isValid) {
