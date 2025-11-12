@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 # 📌 要件定義書 / 機能設計（MVP版）
 
 ---
@@ -425,34 +426,63 @@ jobs:
 # END
 =======
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+=======
+# first5 (Auth-enabled MVP)
+>>>>>>> 2807b01 (auth)
 
-## Getting Started
+## 概要
+- `/` : マーケティング/ログイン導線。Cognito Hosted UI にリダイレクトするサインインボタンを表示。
+- `/app` : 認証済みワークスペース。Cognito の ID トークンが有効な場合のみアクセス可能です。
+- `/auth/login`・`/auth/callback`・`/auth/logout` : PKCE 付き Authorization Code Flow を処理するサーバールート。
+- `middleware.ts` : `/app/*` へのリクエストで ID トークンを検証し、未ログイン時は `/auth/login` にリダイレクトします。
 
-First, run the development server:
+### ディレクトリ構成（Next.js 推奨）
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```
+src/
+  app/                # ルート/ページ/レイアウト/サーバーアクション
+    auth/             # Cognito 認証フローのルートハンドラ
+    app/              # 認証済みダッシュボード
+    globals.css       # グローバルスタイル
+    layout.tsx        # 共有レイアウト（ヘッダー等）
+    page.tsx          # ランディングページ
+  lib/
+    auth/             # config / cookies / token 検証などのユーティリティ
+public/               # 画像・favicon 等
+middleware.ts         # `/app/*` を保護する認証ミドルウェア
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 必要な環境変数 (.env)
+`.env.example` をコピーして以下を設定してください。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| 変数 | 説明 |
+| --- | --- |
+| `COGNITO_REGION` | 例: `ap-northeast-1` |
+| `COGNITO_USER_POOL_ID` | 例: `ap-northeast-1_xxxxx` |
+| `COGNITO_CLIENT_ID` | Hosted UI 用アプリクライアント ID |
+| `COGNITO_DOMAIN` | `your-domain.auth.ap-northeast-1.amazoncognito.com` のような Hosted UI ドメイン |
+| `COGNITO_REDIRECT_URI` | Cognito コンソールで許可したコールバック URL。ローカルでは `http://localhost:3000/auth/callback` |
+| `COGNITO_LOGOUT_REDIRECT_URI` | サインアウト後に戻したい URL (例: `http://localhost:3000/`) |
+| `COGNITO_SCOPES` | スペース区切りのスコープ。既定値は `openid email profile` |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+> **PKCE の状態/コード検証情報は HttpOnly Cookie (`first5_pkce`) に 5 分間だけ保持されます。**
 
-## Learn More
+## ログインの流れ
+1. `/auth/login` にアクセスすると、`state` と `code_verifier` を生成し Hosted UI へ 302 リダイレクト。
+2. `/auth/callback` で `state` を検証し、トークンエンドポイントへ `code_verifier` と共に交換リクエストを送信。
+3. 受け取った ID トークンを Web Crypto API で署名検証し、有効であれば `first5_id_token` Cookie (HttpOnly/SameSite=Lax/Secure) に保存。
+4. `/auth/logout` はセッションクッキーを削除し、Cognito の `/logout` へリダイレクト。
 
-To learn more about Next.js, take a look at the following resources:
+## 開発手順
+```bash
+npm install
+npm run dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `http://localhost:3000/` : サインイン導線付きのランディング。
+- `http://localhost:3000/app` : 認証が必要。ミドルウェアが ID トークンを検証し、未ログイン時は `/auth/login` に戻します。
 
+<<<<<<< HEAD
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
 ## Deploy on Vercel
@@ -461,3 +491,9 @@ The easiest way to deploy your Next.js app is to use the [Vercel Platform](https
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
 >>>>>>> 590004e (Initial commit from Create Next App)
+=======
+## セキュリティメモ
+- ID トークンの検証は `src/lib/auth/token.ts` にて JWKS をフェッチし Web Crypto で署名確認・`iss`/`aud`/`exp`/`token_use` をチェックしています。
+- すべての認証関連 Cookie は `HttpOnly`/`Secure`/`SameSite=Lax`/`path=/` で設定。
+- API ルートが追加された場合は、同様に `verifyIdToken` を呼び出して保護してください。
+>>>>>>> 2807b01 (auth)
